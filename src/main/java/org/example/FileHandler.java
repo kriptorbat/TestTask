@@ -5,34 +5,38 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class FileHandler {
     public void fileRecognizer(String filePath) throws IOException {
-        List<EntityObject> entities = new ArrayList<EntityObject>();
-        if (filePath.endsWith(".json")) {
-            BufferedReader reader = Files.newBufferedReader(Path.of(filePath));
-            String line;
-            StringBuilder jsonStr = new StringBuilder();
-            //String jsonStr = Files.readString(Path.of(filePath));
-            while ((line = reader.readLine()) != null) {
-                jsonStr.append(line);
+        List<EntityObject> entities = new ArrayList<>();
+        try {
+            if (filePath.endsWith(".json")) {
+                BufferedReader reader = Files.newBufferedReader(Path.of(filePath));
+                String line;
+                StringBuilder jsonStr = new StringBuilder();
+                while ((line = reader.readLine()) != null) {
+                    jsonStr.append(line);
+                }
+                entities = jsonParser(jsonStr.toString());
+                outputStatistic(entities);
+
+
+            } else if (filePath.endsWith(".csv")) {
+
+                BufferedReader reader = Files.newBufferedReader(Path.of(filePath));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.equals("group,type,number,weight")) continue;
+                    entities.add(csvParser(line));
+                }
+                outputStatistic(entities);
+            } else {
+                System.out.println("Файл по пути " + filePath + " с нужным расширением не был найден");
             }
-            entities = jsonParser(jsonStr.toString());
-            outputStatistic(entities);
-        } else if (filePath.endsWith(".csv")) {
-            BufferedReader reader = Files.newBufferedReader(Path.of(filePath));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.equals("group,type,number,weight")) continue;
-                entities.add(csvParser(line));
-            }
-            outputStatistic(entities);
-        } else {
-            System.out.println("Файл по пути " + filePath + " с нужным расширением не был найден");
+        } catch (OutOfMemoryError e) {
+            System.err.println("Файл слишком большой, недостаточно памяти");
         }
     }
 
@@ -67,33 +71,37 @@ public class FileHandler {
     }
 
     private void outputStatistic(List<EntityObject> entities) {
-        System.out.println("Дубликаты:");
-        for (String entityStr : getDuplicate(entities)) System.out.println(entityStr);
-        System.out.println();
+        try {
+            System.out.println("Дубликаты:");
 
-        System.out.println("Сумарный вес по гуппам:");
-        for (Map.Entry<String, String> pair : getTotalWeight(entities).entrySet()) {
-            String key = pair.getKey();
-            String vol = pair.getValue();
-            System.out.println("Гуппа: " + key + " Суммарный вес = " + vol);
+            for (String entityStr : getDuplicates(entities)) System.out.println(entityStr);
+
+            System.out.println();
+
+            System.out.println("Сумарный вес по гуппам:");
+            for (Map.Entry<String, String> pair : getTotalWeight(entities).entrySet()) {
+                System.out.println("Гуппа: " + pair.getKey() + " Суммарный вес = " + pair.getValue());
+            }
+            System.out.println();
+
+            System.out.println("Максимальный вес объектов в файле:" + getMaxWeight(entities));
+            System.out.println();
+            System.out.println("Минимальный вес объектов в файле:" + getMinWeight(entities));
+            System.out.println();
+        } catch (OutOfMemoryError e) {
+            System.err.println("Файл слишком большой, недостаточно памяти");
         }
-        System.out.println();
-
-        System.out.println("Максимальный вес объектов в файле:" + getMaxWeight(entities));
-        System.out.println();
-        System.out.println("Минимальный вес объектов в файле:" + getMinWeight(entities));
-        System.out.println();
     }
 
-    private List<String> getDuplicate(List<EntityObject> entities) {
-        Map<String,Integer> counts = new HashMap<>();
-        List<String> duplicates = new ArrayList<>();
+    private List<String> getDuplicates(List<EntityObject> entities) {
+        Map<String, Integer> counts = new HashMap<>();
         for (EntityObject entity : entities) {
             String entry = "Group = " + entity.getGroup() + " Type = " + entity.getType();
             counts.put(entry, counts.getOrDefault(entry, 0) + 1);
         }
 
-        for (Map.Entry<String,Integer> entry : counts.entrySet()) {
+        List<String> duplicates = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : counts.entrySet()) {
             if (entry.getValue() > 1) {
                 duplicates.add(entry.getKey() + " (количество повторений дубликатов: " + entry.getValue() + ")");
             }
